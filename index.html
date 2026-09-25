@@ -782,7 +782,7 @@ function mk(n,d,seed,title){
 function key(){return cur.title+cur.seed}function cards(){$("#cards").innerHTML=P.map((p,i)=>`<div class="card" data-i="${i}"><small>No. 0${i+1} · ${p.d}</small><h2>${p.title}</h2><p>${p.t} · ${p.n} × ${p.n}</p></div>`).join("");document.querySelectorAll(".card").forEach(x=>x.onclick=()=>open(P[+x.dataset.i]))}cards();
 let activeEntry=null;
 function entryCells(e){return Array.from({length:e.a.length},(_,k)=>(e.r+e.dr*k)*cur.n+(e.c+e.dc*k))}
-function open(p){if(!validLayout(p))throw new Error("Invalid crossword layout blocked");cur=p;dir=tab="A";activeEntry=p.E.find(e=>e.dir==="A")||p.E[0];dir=tab=activeEntry.dir;sel=activeEntry.r*p.n+activeEntry.c;$("#home").classList.add("off");$("#game").classList.add("on");$("#title").textContent=p.title;$("#meta").textContent=p.d+" · "+p.t+" · "+p.n+" × "+p.n+" · BUILD 16";$("#grid").style.setProperty("--n",p.n);
+function open(p){if(!validLayout(p))throw new Error("Invalid crossword layout blocked");cur=p;dir=tab="A";activeEntry=p.E.find(e=>e.dir==="A")||p.E[0];dir=tab=activeEntry.dir;sel=activeEntry.r*p.n+activeEntry.c;$("#home").classList.add("off");$("#game").classList.add("on");$("#title").textContent=p.title;$("#meta").textContent=p.d+" · "+p.t+" · "+p.n+" × "+p.n+" · BUILD 21";$("#grid").style.setProperty("--n",p.n);
 let recent=JSON.parse(localStorage.getItem("cwRecentAnswers")||"[]");
 recent=[...p.E.map(e=>e.a),...recent.filter(w=>!p.E.some(e=>e.a===w))].slice(0,120);
 localStorage.setItem("cwRecentAnswers",JSON.stringify(recent));
@@ -821,25 +821,23 @@ function clues(){$("#ta").classList.toggle("on",tab==="A");$("#td").classList.to
 function paint(){let e=activeEntry;if(!e)return;dir=tab=e.dir;let cells=new Set(entryCells(e));document.querySelectorAll(".cell").forEach((x,i)=>{x.classList.toggle("word",cells.has(i));x.classList.toggle("sel",i===sel)});document.querySelectorAll(".clue").forEach(x=>x.classList.toggle("hot",+x.dataset.n===e.num));$("#current").textContent=(e.dir==="A"?"Across ":"Down ")+e.num+" · "+e.clue}
 function move(step){let e=ce(),r=Math.floor(sel/cur.n),c=sel%cur.n,k=(r-e.r)*e.dr+(c-e.c)*e.dc;k=Math.max(0,Math.min(e.a.length-1,k+step));sel=(e.r+e.dr*k)*cur.n+(e.c+e.dc*k)}
 function moveAfterType(){let e=ce(),cells=entryCells(e),k=cells.indexOf(sel),pr=st.p[key()]||{};for(let j=k+1;j<cells.length;j++){if(!pr[cells[j]]){sel=cells[j];return}}}
-$("#kbd").addEventListener("input",e=>{let ch=e.target.value.slice(-1).toUpperCase();e.target.value="";if(!cur||!/^[A-Z]$/.test(ch)||!answer(sel))return;let pr=st.p[key()]||{};pr[sel]=ch;st.p[key()]=pr;moveAfterType();save();draw();$("#kbd").focus()});
-
 function entryIndex(dir,entry){
-  const list=cur.E.filter(e=>e.d===dir);
-  return list.findIndex(e=>e===entry || (e.n===entry.n&&e.d===entry.d));
+  const list=cur.E.filter(e=>e.dir===dir);
+  return list.findIndex(e=>e===entry || (e.num===entry.num&&e.dir===entry.dir));
 }
 function cycleEntry(){
   if(!cur)return;
-  const here=ce(), dir=here.d;
-  const same=cur.E.filter(e=>e.d===dir);
-  let idx=same.findIndex(e=>e.n===here.n&&e.d===here.d);
+  const here=ce(), orientation=here.dir;
+  const same=cur.E.filter(e=>e.dir===orientation).sort((a,b)=>a.num-b.num);
+  let idx=same.findIndex(e=>e.num===here.num&&e.dir===here.dir);
   let target=null;
   if(idx>=0 && idx<same.length-1) target=same[idx+1];
   else {
-    const other=dir==="A"?"D":"A";
-    const opp=cur.E.filter(e=>e.d===other);
+    const other=orientation==="A"?"D":"A";
+    const opp=cur.E.filter(e=>e.dir===other).sort((a,b)=>a.num-b.num);
     target=opp[0]||same[0];
   }
-  if(target){activeDir=target.d;sel=entryCells(target)[0];draw();$("#kbd").focus()}
+  if(target){selectEntry(target);}
 }
 function previousPlayableInEntry(){
   const cells=entryCells(ce()),i=cells.indexOf(sel);
@@ -892,8 +890,7 @@ $("#kbd").addEventListener("keydown",e=>{
 
     // Advance exactly one physical cell in the active answer. Do NOT skip
     // pre-filled intersections; they remain directly editable on click.
-    const nxt=nextPlayableInEntry();
-    if(nxt!==null)sel=nxt;
+    moveAfterType();
     draw();$("#kbd").focus();
     return;
   }
@@ -906,10 +903,21 @@ $("#kbd").addEventListener("keydown",e=>{
     if(e.key==="ArrowUp")rr--; if(e.key==="ArrowDown")rr++;
     if(rr>=0&&cc>=0&&rr<n&&cc<n&&answer(rr*n+cc)){
       sel=rr*n+cc;
-      activeDir=(e.key==="ArrowUp"||e.key==="ArrowDown")?"D":"A";
+      activeEntry=at(sel,(e.key==="ArrowUp"||e.key==="ArrowDown")?"D":"A")||activeEntry; dir=tab=activeEntry.dir;
       draw();$("#kbd").focus();
     }
   }
+});
+$("#kbd").addEventListener("input",e=>{
+  const ch=e.target.value.slice(-1).toUpperCase();
+  e.target.value="";
+  if(!cur||!/^[A-Z]$/.test(ch)||!answer(sel))return;
+  const pr=st.p[key()]||(st.p[key()]={});
+  pr[sel]=ch;
+  save();
+  moveAfterType();
+  draw();
+  $("#kbd").focus();
 });
 $("#hint").onclick=()=>{
   if(!cur)return;
